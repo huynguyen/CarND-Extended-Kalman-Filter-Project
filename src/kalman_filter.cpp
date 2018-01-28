@@ -30,48 +30,64 @@ void KalmanFilter::Predict() {
 void KalmanFilter::Update(const VectorXd &z) {
 	VectorXd z_pred = H_ * x_;
 	VectorXd y = z - z_pred;
+  sharedUpdate(y);
+}
+/*{{{*/
+void KalmanFilter::UpdateEKF(const VectorXd &z) {
+  VectorXd z_pred = cartesianToPolar(x_);
+	VectorXd y = z - z_pred;
+  y(1) = normalizeAngle(y);
+  sharedUpdate(y);
+}
+
+void KalmanFilter::UpdateStateTransition(const float dt) {
+  F_(0,2) = dt;
+  F_(1,3) = dt;
+}
+
+void KalmanFilter::UpdateProcessCovariance(const float dt,
+    const int noise_ax,
+    const int noise_ay) {
+
+  float dt2 = dt * dt;
+  float dt3 = dt2 * dt;
+  float dt4 = dt3 * dt;
+  Q_ << dt4/4 * noise_ax, 0, dt3/2 * noise_ax, 0,
+     0, dt4/4 * noise_ay, 0, dt3/2 * noise_ay,
+     dt3/2 * noise_ax, 0, dt2 * noise_ax, 0,
+     0, dt3/2 * noise_ay, 0, dt2 * noise_ay;
+}
+
+float KalmanFilter::normalizeAngle(const VectorXd &y) {
+  float px = cos(y(1));
+  float py = sin(y(1));
+  float n_theta = atan2(py,px);
+  return n_theta;
+}
+
+MatrixXd KalmanFilter::cartesianToPolar(const VectorXd &x) {
+	float px = x_(0);
+	float py = x_(1);
+	float vx = x_(2);
+	float vy = x_(3);
+
+	float rho = sqrt(px*px+py*py);
+	float theta = atan2(py,px);
+	float ro_dot = (px * vx + py * vy) / rho;
+
+	VectorXd z_pred = VectorXd(3);
+	z_pred << rho, theta, ro_dot;
+
+  return z_pred;
+}
+
+void KalmanFilter::sharedUpdate(const VectorXd &y) {
 	MatrixXd Ht = H_.transpose();
 	MatrixXd S = H_ * P_ * Ht + R_;
 	MatrixXd Si = S.inverse();
 	MatrixXd PHt = P_ * Ht;
 	MatrixXd K = PHt * Si;
 
-	//new estimate
-	x_ = x_ + (K * y);
-	long x_size = x_.size();
-	MatrixXd I = MatrixXd::Identity(x_size, x_size);
-	P_ = (I - K * H_) * P_;
-}
-
-void KalmanFilter::UpdateEKF(const VectorXd &z) {
-	float px = x_(0);
-	float py = x_(1);
-	float vx = x_(2);
-	float vy = x_(3);
-
-	//pre-compute a set of terms to avoid repeated calculation
-	float rho = sqrt(px*px+py*py);
-	float theta = atan(px * py);
-	float ro_dot = (px * vx + py * py) / rho;
-
-	while (theta > 2*M_PI) {
-	  theta -= 2*M_PI;
-  }
-
-  while (theta < -2*M_PI) {
-    theta += 2 * M_PI;
-  }
-
-	VectorXd z_pred = VectorXd(3);
-	z_pred << rho, theta, ro_dot;
-
-	VectorXd y = z - z_pred;
-	MatrixXd Ht = H_.transpose();
-	MatrixXd S = H_ * P_ * Ht + R_;
-	MatrixXd Si = S.inverse();
-	MatrixXd K = P_ * Ht * Si;
-
-	//new estimate
 	x_ = x_ + (K * y);
 	long x_size = x_.size();
 	MatrixXd I = MatrixXd::Identity(x_size, x_size);

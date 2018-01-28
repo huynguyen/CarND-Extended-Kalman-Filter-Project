@@ -63,6 +63,27 @@ public:
    * @param z The measurement at k+1
    */
   void UpdateEKF(const Eigen::VectorXd &z);
+
+  /**
+   * Update the state Transition matrix F with time passed
+   * @param dt The elapsed time at k+1 in s
+   */
+  void UpdateStateTransition(const float dt);
+
+  /**
+   * Update the state Transition matrix F with time passed
+   * @param dt The elapsed time at k+1 in s
+   * @param noise_ax Acceleration noise in x direction
+   * @param noise_ay Acceleration noise in y direction
+   */
+  void UpdateProcessCovariance(const float dt,
+    const int noise_ax,
+    const int noise_ay);
+
+private:
+  void sharedUpdate(const Eigen::VectorXd &y);
+  float normalizeAngle(const Eigen::VectorXd &y);
+  Eigen::MatrixXd cartesianToPolar(const Eigen::VectorXd &x);
 };
 
 #endif /* KALMAN_FILTER_H_ */
